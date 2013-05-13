@@ -1,4 +1,4 @@
 cpp-lib
 =======
 
-my cpp lib
+Personal C++ lib
