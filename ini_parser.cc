@@ -78,8 +78,8 @@ void IniParser::stripComment(string &line)
 
 void IniParser::get(const string &section, const string &option, string &value)
 {
-  map<string, string>::const_iterator it_option;
-  map<string, map<string, string> >::const_iterator it_section;
+  hash_map<string, string>::const_iterator it_option;
+  hash_map<string, hash_map<string, string> >::const_iterator it_section;
   do {
     it_section = map_.find(section);
     if (it_section == map_.end()) break;
@@ -155,17 +155,26 @@ void IniParser::get_string(const string &section, const string &option, string &
   get(section, option, value);
 }
 
+const hash_map<string, string> IniParser::get_section(const string &section)
+{
+  hash_map<string, hash_map<string, string> >::const_iterator
+  it_section = map_.find(section);
+  if (it_section == map_.end()) return hash_map<string, string>(0);
+  return it_section->second;
+}
+
 void IniParser::print()
 {
   if (map_.size() == 0) {
     printf("NULL\n"); return;
   }
-  for (std::map<std::string, std::map<std::string, std::string> >::const_iterator it_section
-       = map_.begin(); it_section != map_.end(); it_section++) {
+  for (hash_map<string, hash_map<string, string> >::const_iterator
+       it_section = map_.begin(); it_section != map_.end(); ++it_section) {
     // section
     printf("[%s]\n", it_section->first.c_str());
     // options
-    for (std::map<std::string, std::string>::const_iterator it_option = it_section->second.begin();
+    for (hash_map<string, string>::const_iterator
+         it_option = it_section->second.begin();
          it_option != it_section->second.end(); ++it_option) {
       printf("%30s = %s\n", it_option->first.c_str(), it_option->second.c_str());
     }

@@ -14,11 +14,13 @@
 
 #include <iostream>
 #include <fstream>
-#include <map>
+
+#include <ext/hash_map>
 
 #include "tools.h"
 
 using namespace std;
+using namespace __gnu_cxx;
 
 class IniParser {
   
@@ -41,12 +43,14 @@ class IniParser {
   void   get_string(const string &section, const string &option, string &value);
   string get_string(const string &section, const string &option);
   
+  const hash_map<string, string> get_section(const string &section);
+  
   void print();
   
   private:
   
   string comment_chars_;  // 注释符
-  map<string, map<string, string> > map_;
+  hash_map<string, hash_map<string, string> > map_;
   
   string section_;
   
