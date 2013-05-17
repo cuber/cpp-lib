@@ -19,6 +19,11 @@ namespace tools {
   
   using namespace std;
   
+  // 获取父级目录
+  // @param string filename
+  // @return string dirname
+  string dirname(string filename);
+  
   // 去除两端的空字符
   // @param string *str
   void trim(string *str);
@@ -51,36 +56,12 @@ namespace tools {
     }
   }
   
-  // 安全创建文件夹
-  // @param cosnt string &dirname
-  void safe_mkdir(const string &dirname);
+  //----------------------------------------------------------------------------
+  //                        System Action
+  //----------------------------------------------------------------------------
   
-  // 安全打开
-  // @param const string &filename
-  // @param const string &flag
-  // @return FILE *
-  FILE * safe_open(const string &filename, const string &flag);
-  
-  // 设置run flag
-  // @param const string &filename
-  // @param const int flag
-  void set_run_flag(const string &filename, const int flag);
-  
-  // 获取父级目录
-  // @param string filename
-  // @return string dirname
-  string dirname(string filename);
-  
-  // 写进程号文件
-  // @param const string &pid_filename
-  void write_pid(const string &pid_filename);
-  
-  // 判断进程是否存活, 用于校验程序唯一性
-  // @param const string &pid_filename
-  bool check_running(const string &pid_filename);
-  
-  // 当前进程脱离shell
-  void detach_terminal(void);
+  // detach from terminal
+  void detachTerminal(void);
 }
 
 #endif /* defined(_TOOLS_H) */

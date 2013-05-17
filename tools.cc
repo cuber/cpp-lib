@@ -12,6 +12,13 @@ namespace tools {
   
   using namespace std;
   
+  // 获取父级目录
+  string dirname(string filename)
+  {
+    return filename.erase(filename.find_last_of("/"));
+  }
+
+  
   // 去除两端空字符
   void trim(string *str)
   {
@@ -51,63 +58,8 @@ namespace tools {
     }
   }
   
-  // 安全建立文件夹
-  void safe_mkdir(const string &dirname)
-  {
-    if (dirname.length() && access(dirname.c_str(), F_OK) != 0) {
-      mkdir(dirname.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-    }
-  }
-  
-  // 安全打开
-  FILE * safe_open(const string &filename, const string &flag)
-  {
-    safe_mkdir(dirname(filename));
-    FILE *fp = fopen(filename.c_str(), flag.c_str());
-    if (NULL == fp) {
-      fprintf(stderr, "fopen('%s', '%s'); error\n", filename.c_str(), flag.c_str());
-      exit(EXIT_FAILURE);
-    }
-    return fp;
-  }
-  
-  // 设置run flag
-  void set_run_flag(const string &filename, const int flag)
-  {
-    FILE *fp = safe_open(filename, "wb");
-    fwrite(flag ? "1" : "0", 1, sizeof(char), fp);
-    fclose(fp);
-  }
-  
-  // 获取父级目录
-  string dirname(string filename)
-  {
-    return filename.erase(filename.find_last_of("/"));
-  }
-  
-  // 写进程号文件
-  void write_pid(const string &pid_filename)
-  {
-    FILE *fp = safe_open(pid_filename, "wb");
-    pid_t pid = getpid();
-    fwrite(&pid, sizeof(pid_t), 1, fp);
-    fclose(fp);
-  }
-  
-  // 判断进程是否存活, 保证程序唯一性
-  bool check_running(const string &pid_filename)
-  {
-    if (access(pid_filename.c_str(), F_OK) != 0) return false;
-    FILE *fp = safe_open(pid_filename, "rb");
-    pid_t pid = -1;
-    fread(&pid, sizeof(pid_t), 1, fp);
-    fclose(fp);
-    if (pid <= 1) return false;
-    return kill(pid, 0) == 0;
-  }
-  
   // 从shell分离
-  void detach_terminal(void)
+  void detach_terminal(bool is_exit)
   {
     pid_t pid = fork();
     if (pid < 0) {

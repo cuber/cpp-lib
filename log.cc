@@ -9,55 +9,15 @@
 #include "log.h"
 
 using namespace tools;
-
-Log Log::self_[LS_OBJ_SIZE];
-
-Log * Log::init(const int logid, string filename)
-{
-  if (logid < 0 || logid >= LS_OBJ_SIZE) return NULL;
-  Log *ptr = self_ + logid;
-  ptr->init(filename);
-  return ptr;
-}
-
-Log * Log::get(const int logid)
-{
-  if (logid < 0 || logid >= LS_OBJ_SIZE) return NULL;
-  Log *ptr = self_ + logid;
-  return ptr;
-}
-
-void Log::reopenAll(void)
-{
-  for (int i = 0; i < LS_MAX_SIZE; i++) {
-    if (self_[i].reopen()) continue;
-    fprintf(stderr, "reopen('%s') failed\n", self_[i].filename().c_str());
-  }
-}
-
-string Log::filename(void)
-{
-  return filename_;
-}
-
-string Log::getType(const int &type)
-{
-  switch (type) {
-    case LS_ERROR:
-      return "error";
-      break;
-    case LS_INFO: default:
-      return "info";
-      break;
-  }
-}
-
+//------------------------------------------------------------------------------
+//                         member function
+//------------------------------------------------------------------------------
 bool Log::init(const string &filename)
 {
   if (!filename.length()) return false;
   
   filename_ = filename;
-  safe_mkdir(dirname(filename_));
+  SafeIO<true>::mkdir(dirname(filename_));
   
   fd_ = open(filename_.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
   return fd_ != -1;
@@ -66,7 +26,7 @@ bool Log::init(const string &filename)
 bool Log::error(const char *format, ...) {
   va_list ap;
   va_start(ap, format);
-  int res = write(LS_ERROR, format, ap);
+  int res = write("error", format, ap);
   va_end(ap);
   return res;
 }
@@ -75,7 +35,7 @@ bool Log::info(const char *format, ...)
 {
   va_list ap;
   va_start(ap, format);
-  int res = write(LS_INFO, format, ap);
+  int res = write("info", format, ap);
   va_end(ap);
   return res;
 }
@@ -86,22 +46,21 @@ bool Log::write(const char *str)
   return ::write(fd_, str, strlen(str));
 }
 
-bool Log::write(const int &type, const char *str)
+bool Log::write(const char *type, const char *str)
 {
-  char line[LS_MAX_SIZE];
-  snprintf(line, sizeof(line), "%s [%s] %s", fmt<32>::date().c_str(),
-           getType(type).c_str(), str);
+  char line[LOG_MAX_SIZE];
+  snprintf(line, LOG_MAX_SIZE, "%s [%s] %s", fmt<32>::date().c_str(), type, str);
 #ifdef _DEBUG
-  fprintf(type == LS_ERROR ? stderr : stdout, "%s", line);
+  fprintf(strncmp(type, "error", strlen(type)) ? stderr : stdout, "%s", line);
 #endif
-  return write(line);
+  return this->write(line);
 }
 
-bool Log::write(const int &type, const char *format, va_list ap)
+bool Log::write(const char *type, const char *format, va_list ap)
 {
-  char line[LS_MAX_SIZE];
-  vsnprintf(line, sizeof(line), format, ap);
-  return write(type, line);
+  char line[LOG_MAX_SIZE];
+  vsnprintf(line, LOG_MAX_SIZE, format, ap);
+  return this->write(type, line);
 }
 
 bool Log::reopen(void)

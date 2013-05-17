@@ -22,7 +22,7 @@
 using namespace std;
 using namespace tools;
 
-class ini {
+class Ini {
   class value {
   private:
     string content_;
@@ -61,11 +61,13 @@ class ini {
     }
   };
   
+public:
   typedef map<string, class value> section_t;
   
+public:
   class section : public section_t {
   public:
-    inline class value& operator[] (const string &key) {
+    inline class value & operator[] (const string &key) {
       section_t::iterator it = find(key);
       if (it != end()) return it->second;
       fprintf(stderr, "Key: '%s' not exists\n", key.c_str());
@@ -91,8 +93,12 @@ private:
   ini_t map_;
   
 public:
-  ini(void) {
+  Ini(void) {
     comment_ = "#!";
+  }
+  
+  inline bool isLoad(void) {
+    return filename_.length() != 0;
   }
   
   inline void load(const string &filename) {
@@ -103,21 +109,22 @@ public:
   }
   
 public:
-  inline class section section(const string &section) {
+  
+  inline class section & operator[](const string &section) {
     ini_t::iterator it = map_.find(section);
     if (it != map_.end()) return it->second;
     fprintf(stderr, "Section: '%s' not exists\n", section.c_str());
     exit(EXIT_FAILURE);
   }
   
-  inline class value get(const string &section, const string &key) {
-    class section s = this->section(section);
-    return s.get(key);
+  inline class section & get(const string &section) {
+    return (*this)[section];
   }
   
-  inline class section operator[](const string &section) {
-    return map_[section];
+  inline class value get(const string &section, const string &key) {
+    return get(section).get(key);
   }
+  
 public:
   void print(void);
   

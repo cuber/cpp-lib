@@ -8,7 +8,7 @@
 #ifndef _LOG_H
 #define _LOG_H 1
 
-#include <vector>
+#include <map>
 #include <fcntl.h>
 #include <time.h>
 #include <stdio.h>
@@ -21,58 +21,42 @@
 
 #include "fmt.h"
 #include "tools.h"
+#include "safe_io.h"
 
-#define LS_EOL      "\n"
-#define LS_SPACE    " "
-#define LS_MAX_SIZE 4096 // 4k for direct io
-
-#define LS_OBJ_SIZE 2
-
-#define LS_INFO  1
-#define LS_ERROR 2
+#define LOG_EOL      "\n"
+#define LOG_SPACE    " "
+#define LOG_MAX_SIZE 4096 // 4k for direct io
 
 using namespace std;
 
 class Log
 {
 private:
-  int fd_;
+  int    fd_;
   string filename_;
   
-private:
+public:
   Log(): fd_(-1), filename_("") {}
+  Log(const string &filename): fd_(-1) {
+    init(filename);
+  }
   
 public:
-  ~Log()
-  {
+  ~Log() {
     if (fd_ != -1) close(fd_);
   }
   
-private:
-  string getType(const int &type);
-  
 public:
   bool reopen(void);
-  string filename(void);
   
 public:
   bool init(const string &filename);
-  bool error(const char *format, ...);
-  bool info(const char *format, ...);
+  bool error(const char *format, ...) __attribute__((format(printf, 2, 3)));
+  bool info (const char *format, ...) __attribute__((format(printf, 2, 3)));
   
   bool write(const char *str);
-  bool write(const int &type, const char *str);
-  bool write(const int &type, const char *format, va_list ap);
-  
-  
-private:
-  static Log self_[LS_OBJ_SIZE];
-  
-public:
-  static void reopenAll(void);
-  static Log * get(const int logid);
-  static Log * init(const int logid, string filename);
-  
+  bool write(const char *type, const char *str);
+  bool write(const char *type, const char *format, va_list ap);
 };
 
 
@@ -84,41 +68,48 @@ private: // make the stream non-copyable
   void operator=(const self &);
   
 private:
-  int  off_;
-  char buf_[LS_MAX_SIZE];
+  static map<string, class Log> logmap_;
   
 private:
-  int type_;
-  int logid_;
+  int  off_;
+  
+private:
+  class Log * log_;
+  
+private:
+  string type_;
+  
+private:
+  char buf_[LOG_MAX_SIZE];
   
 public:
-  LogStream(const int &logid):
-  off_(0), type_(-1), logid_(logid) {
+  LogStream(class Log * log, const string type = ""):
+  off_(0), log_(log), type_(type) {
     buf_[0] = '\0';
   }
-  LogStream(const int &type, const int &logid):
-  off_(0), type_(type), logid_(logid) {
-    buf_[0] = '\0';
-  }
+  
   ~LogStream(void) { // 末尾添加换行符
-    append(LS_EOL, 1);
-    Log * l = Log::get(logid_);
-    if (NULL == l) return;
-    if (-1 == type_) l->write(buf_);
-    else l->write(type_, buf_);
+    append(LOG_EOL, 1);
+    if (type_.length()) {
+      if (NULL == log_) fprintf(stdout, "[%s] %s", type_.c_str(), buf_);
+      else log_->write(type_.c_str(), buf_);
+    } else {
+      if (NULL == log_) fprintf(stdout, "%s", buf_);
+      else log_->write(buf_);
+    }
   }
   
 private:
   // 追加
   template<int fmt_size>
   inline self & append(fmt<fmt_size> v) {
-    strncpy(buf_ + off_, v.c_str(), LS_MAX_SIZE - off_);
+    strncpy(buf_ + off_, v.c_str(), LOG_MAX_SIZE - off_);
     off_ += v.length();
     return *this;
   }
   
   inline self & append(const char * s) {
-    strncpy(buf_ + off_, s, LS_MAX_SIZE - off_);
+    strncpy(buf_ + off_, s, LOG_MAX_SIZE - off_);
     off_ += strlen(s);
     return *this;
   }
@@ -174,7 +165,5 @@ public:
     return buf_;
   }
 };
-
-
 
 #endif /* defined(_LOG_H) */

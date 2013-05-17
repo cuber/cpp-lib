@@ -7,14 +7,14 @@
 
 #include "ini.h"
 
-void ini::stripComment(string &line) {
+void Ini::stripComment(string &line) {
   string::size_type comment_pos = line.find_first_of(comment_);
   if (comment_pos == string::npos) return;
   line.erase(comment_pos);
 }
 
 
-void ini::parse(void)
+void Ini::parse(void)
 {
   string line(""), realline("");
   ifstream ifs(filename_.c_str());
@@ -31,7 +31,7 @@ void ini::parse(void)
   }
 }
 
-void ini::parseLine(string line)
+void Ini::parseLine(string line)
 {
   tools::trim(&line); size_t length = line.length();
   if (length == 0) return;
@@ -43,7 +43,7 @@ void ini::parseLine(string line)
   }
 }
 
-bool ini::parseValue(string line, const size_t &length,
+bool Ini::parseValue(string line, const size_t &length,
                      string &key, string &value)
 {
   string::size_type equal_pos = line.find_first_of("=");
@@ -54,14 +54,14 @@ bool ini::parseValue(string line, const size_t &length,
   return false;
 }
 
-bool ini::parseSection(string line, const size_t &length)
+bool Ini::parseSection(string line, const size_t &length)
 {
   if (line[0] != '[' || line[length - 1] != ']') return false;
   section_ = line.substr(1, length - 2); return true;
 }
 
 
-void ini::print()
+void Ini::print()
 {
   if (map_.size() == 0) {
     printf("NULL\n"); return;
