@@ -59,7 +59,7 @@ namespace tools {
   }
   
   // 从shell分离
-  void detach_terminal(bool is_exit)
+  void detachTerminal(void)
   {
     pid_t pid = fork();
     if (pid < 0) {

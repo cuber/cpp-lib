@@ -76,9 +76,10 @@ public:
   static bool isRunning(const string & pidfile) {
     if (access(pidfile.c_str(), F_OK) != 0) return false;
     FILE *fp = fopen(pidfile, "rb");
-    pid_t pid = -1;
-    fread(&pid, sizeof(pid_t), 1, fp);
+    char pid_str[16] = {0};
+    fread(pid_str, sizeof(char), sizeof(pid_str), fp);
     fclose(fp);
+    pid_t pid = atoi(pid_str);
     if (pid <= 1) return false;
     if (kill(pid, 0) != 0) return false;
     error("pidfile '%s', pid '%d' is running", pidfile.c_str(), pid);

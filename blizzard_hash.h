@@ -169,16 +169,24 @@ template <class key_t, class val_t>
 class BlizzardMap {
 public:
   BlizzardMap():
-  chain_size_(0){}
-  ~BlizzardMap(){}
+  chain_size_(0) {}
+  virtual ~BlizzardMap() {
+    for (size_t i = 0; i < chain_.size(); ++i) {
+      if (NULL == chain_[i]) continue;
+      delete chain_[i];
+    }
+    for (size_t i = 0; i < lock_.size(); ++i) {
+      pthread_rwlock_destroy(&lock_[i]);
+    }
+  }
   
-private:
+protected:
   int chain_size_;
   
-private:
+protected:
   struct header_t header_;
   
-private:
+protected:
   vector<unsigned int>            bucket_;
   vector<hash_t>                  hasher_;
   vector<val_t>                   data_;
@@ -187,17 +195,20 @@ private:
   
 public:
   int  size(void);
-  bool unserialize(string filename);
+  bool unserialize(const string & filename);
   bool unserialize(FILE *fp);
-  const val_t * operator[](const key_t &key);
+  bool get(const key_t &key, val_t &value);
   
 public:
   bool set(const key_t &key, const val_t &value);
   
-private:
+protected:
   bool init(void);
-  val_t *existsData(const hash_t &hash, unsigned int bucket_id);
-  val_t *existsChain(const hash_t &hash, unsigned int bucket_id);
+  bool insertChain  (const hash_t &hash, const val_t &value);
+  val_t *existsData (const hash_t &hash, unsigned int bucket_id);
+  
+protected:
+  chain_t<val_t> * existsChain(const hash_t &hash, unsigned int bucket_id);
   
 public:
   bool static serialize(hash_map<key_t, val_t> &hmap, FILE *fp);
@@ -279,7 +290,7 @@ int BlizzardMap<key_t, val_t>::size(void)
 }
 
 template <class key_t, class val_t>
-bool BlizzardMap<key_t, val_t>::unserialize(string filename)
+bool BlizzardMap<key_t, val_t>::unserialize(const string & filename)
 {
   FILE * fp = fopen(filename.c_str(), "rb");
   if (NULL == fp) {
@@ -323,8 +334,10 @@ bool BlizzardMap<key_t, val_t>::unserialize(FILE *fp)
 }
 
 template <class key_t, class val_t>
-const val_t * BlizzardMap<key_t, val_t>::operator[] (const key_t &key)
-{
+bool BlizzardMap<key_t, val_t>::get(const key_t &key, val_t &value)
+{ 
+  memset(&value, 0, sizeof(val_t));
+  
   hash_t hash = hashing(key);
   unsigned int bucket_id = hash2bucket(hash, header_.bucket_num);
   
@@ -332,15 +345,65 @@ const val_t * BlizzardMap<key_t, val_t>::operator[] (const key_t &key)
   pthread_rwlock_t *lock = &lock_[bucket_id];
   pthread_rwlock_rdlock(lock);
   
-  val_t * value = existsData(hash, bucket_id);
-  if (NULL == value) value = existsChain(hash, bucket_id);
+  // data
+  val_t * val = existsData(hash, bucket_id);
+  if (NULL != val) {
+    value = *val;
+    pthread_rwlock_unlock(lock);
+    return true;
+  }
+  
+  // chain
+  chain_t<val_t> * chain = existsChain(hash, bucket_id);
+  if (NULL != chain && chain->hash == hash) {
+    value = chain->value;
+    // unlock
+    pthread_rwlock_unlock(lock);
+    return true;
+  }
   
   // unlock
   pthread_rwlock_unlock(lock);
-  
-  return value;
+  return false;
 }
 
+template <class key_t, class val_t>
+bool BlizzardMap<key_t, val_t>::insertChain(const hash_t &hash, const val_t &value)
+{
+  unsigned int bucket_id = hash2bucket(hash, header_.bucket_num);
+  
+  if (NULL == chain_[bucket_id]) {
+    chain_[bucket_id] = new chain_t<val_t>;
+    chain_[bucket_id]->hash  = hash;
+    chain_[bucket_id]->value = value;
+    return true;
+  }
+  
+  struct chain_t<val_t> * next  = NULL;
+  struct chain_t<val_t> * chain = existsChain(hash, bucket_id);
+  
+  // head pointer  
+  if (NULL == chain || (chain == chain_[bucket_id] && chain->hash > hash)) {
+    chain_[bucket_id] = new chain_t<val_t>;
+    chain_[bucket_id]->hash  = hash;
+    chain_[bucket_id]->value = value;
+    chain_[bucket_id]->next  = chain;
+    return true;
+  }
+  
+  // equal
+  if (chain->hash == hash) {
+    chain->value = value; return true;
+  }
+  
+  // other pointer
+  next = new chain_t<val_t>;
+  next->next = chain->next;
+  chain->next = next;
+  
+  return true;
+}
+    
 template <class key_t, class val_t>
 val_t * BlizzardMap<key_t, val_t>::existsData(const hash_t &hash, unsigned int bucket_id)
 {
@@ -357,18 +420,21 @@ val_t * BlizzardMap<key_t, val_t>::existsData(const hash_t &hash, unsigned int b
 }
 
 template <class key_t, class val_t>
-val_t * BlizzardMap<key_t, val_t>::existsChain(const hash_t &hash, unsigned int bucket_id)
+chain_t<val_t> * BlizzardMap<key_t, val_t>::existsChain(const hash_t &hash, unsigned int bucket_id)
 {
+  chain_t<val_t> *next    = NULL;
   chain_t<val_t> *current = chain_[bucket_id];
-  if (NULL == current) return NULL;
   
-  do {
-    if (current->hash == hash) return &current->value;
-    if (current->hash > hash) break;
-    current = current->next;
-  } while (NULL != current);
+  // for the head pointer only
+  if (NULL == current || current->hash >= hash) return current;
   
-  return NULL;
+  while (NULL != (next = current->next)) {
+    if (next->hash == hash) return next;
+    if (next->hash > hash) break;
+    current = next;
+  }
+  
+  return current;
 }
     
 template <class key_t, class val_t>
@@ -390,52 +456,11 @@ bool BlizzardMap<key_t, val_t>::set(const key_t &key, const val_t &value)
     return true;
   }
   
-  struct chain_t<val_t> **head = &chain_[bucket_id];
-  struct chain_t<val_t> *chain = NULL, *next = NULL, *tmp = NULL;
-  
-  // hanlde head node of chain
-  if (NULL == *head || (*head)->hash > hash) {
-    tmp = new chain_t<val_t>;
-    tmp->hash  = hash;
-    tmp->value = value;
-    tmp->next  = *head;
-    *head = tmp;
-    
-    // unlock
-    chain_size_++;
-    pthread_rwlock_unlock(lock);
-    return true;
-  }
-  
-  // handle other
-  chain = *head;
-  
-  do {
-    if (chain->hash == hash) {
-      chain->value = value;
-      // unlock
-      pthread_rwlock_unlock(lock);
-      return true;
-    }
-    next = chain->next;
-    if (NULL == next || next->hash > hash) {
-      tmp = new chain_t<val_t>;
-      tmp->hash   = hash;
-      tmp->value  = value;
-      tmp->next   = next;
-      chain->next = tmp;
-      
-      // unlock
-      chain_size_++;
-      pthread_rwlock_unlock(lock);
-      return true;
-    }
-    chain = next;
-  } while (NULL != next);
+  insertChain(hash, value);
   
   // unlock
   pthread_rwlock_unlock(lock);
-  return false;
+  return true;
 }
     
 #endif /* _BLIZZARDMAP_H */
